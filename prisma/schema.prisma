@@ -18,6 +18,18 @@ enum UserStatus {
   SUSPENDED
 }
 
+enum CommitteeStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum PayoutMethod {
+  LOTTERY
+}
+
 model User {
   id           String     @id @default(uuid())
   name         String
@@ -29,5 +41,27 @@ model User {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
+  committees   Committee[]
+
   @@map("users")
+}
+
+model Committee {
+  id                 String          @id @default(uuid())
+  name               String
+  description        String?
+  contributionAmount Decimal         @db.Decimal(12, 2)
+  memberLimit        Int
+  totalCycles        Int
+  payoutMethod       PayoutMethod    @default(LOTTERY)
+  startDate          DateTime
+  dueDay             Int
+  status             CommitteeStatus @default(DRAFT)
+  createdBy          String
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  creator User @relation(fields: [createdBy], references: [id])
+
+  @@map("committees")
 }
