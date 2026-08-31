@@ -5,6 +5,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { CommitteesModule } from './committees/committees.module';
+import { MembersModule } from './members/members.module';
+import { InvitationsModule } from './invitations/invitations.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -18,6 +20,8 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     UsersModule,
     AuthModule,
     CommitteesModule,
+    MembersModule,
+    InvitationsModule,
   ],
   controllers: [AppController],
   providers: [

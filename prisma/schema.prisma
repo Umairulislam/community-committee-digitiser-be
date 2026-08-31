@@ -30,6 +30,25 @@ enum PayoutMethod {
   LOTTERY
 }
 
+enum MemberRole {
+  ADMIN
+  MEMBER
+}
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+  INVITED
+  REMOVED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+}
+
 model User {
   id           String     @id @default(uuid())
   name         String
@@ -42,6 +61,8 @@ model User {
   updatedAt    DateTime   @updatedAt
 
   committees   Committee[]
+  memberships  CommitteeMember[]
+  invitations  Invitation[]
 
   @@map("users")
 }
@@ -61,7 +82,44 @@ model Committee {
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
-  creator User @relation(fields: [createdBy], references: [id])
+  creator    User              @relation(fields: [createdBy], references: [id])
+  members    CommitteeMember[]
+  invitations Invitation[]
 
   @@map("committees")
+}
+
+model CommitteeMember {
+  id          String       @id @default(uuid())
+  committeeId String
+  userId      String
+  role        MemberRole   @default(MEMBER)
+  status      MemberStatus @default(INVITED)
+  joinedAt    DateTime?
+  removedAt   DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  committee Committee @relation(fields: [committeeId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([userId, committeeId])
+  @@map("committee_members")
+}
+
+model Invitation {
+  id          String           @id @default(uuid())
+  committeeId String
+  invitedBy   String
+  email       String
+  token       String           @unique
+  status      InvitationStatus @default(PENDING)
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime         @default(now())
+
+  committee Committee @relation(fields: [committeeId], references: [id])
+  inviter   User      @relation(fields: [invitedBy], references: [id])
+
+  @@map("invitations")
 }
