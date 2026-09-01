@@ -49,6 +49,13 @@ enum InvitationStatus {
   CANCELLED
 }
 
+enum CycleStatus {
+  UPCOMING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
 model User {
   id           String     @id @default(uuid())
   name         String
@@ -85,6 +92,7 @@ model Committee {
   creator    User              @relation(fields: [createdBy], references: [id])
   members    CommitteeMember[]
   invitations Invitation[]
+  cycles     Cycle[]
 
   @@map("committees")
 }
@@ -122,4 +130,22 @@ model Invitation {
   inviter   User      @relation(fields: [invitedBy], references: [id])
 
   @@map("invitations")
+}
+
+model Cycle {
+  id            String      @id @default(uuid())
+  committeeId   String
+  cycleNumber   Int
+  startDate     DateTime?
+  endDate       DateTime?
+  status        CycleStatus @default(UPCOMING)
+  totalExpected Decimal     @default(0) @db.Decimal(12, 2)
+  totalCollected Decimal    @default(0) @db.Decimal(12, 2)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  committee Committee @relation(fields: [committeeId], references: [id])
+
+  @@unique([committeeId, cycleNumber])
+  @@map("cycles")
 }
