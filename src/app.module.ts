@@ -8,6 +8,7 @@ import { MembersModule } from './members/members.module';
 import { CommitteesModule } from './committees/committees.module';
 import { InvitationsModule } from './invitations/invitations.module';
 import { CyclesModule } from './cycles/cycles.module';
+import { ContributionsModule } from './contributions/contributions.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -28,6 +29,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     CommitteesModule,
     InvitationsModule,
     CyclesModule,
+    ContributionsModule,
   ],
   controllers: [AppController],
   providers: [
