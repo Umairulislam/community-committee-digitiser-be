@@ -294,13 +294,20 @@ export class LotteriesService {
       };
     }
 
-    // Exclude members who already won a previous cycle's lottery.
-    const previousWinnerIds = (
-      await this.prisma.lotteryResult.findMany({
-        where: { cycle: { committeeId } },
-        select: { winnerMemberId: true },
-      })
-    ).map((r) => r.winnerMemberId);
+    // Exclude previous lottery winners whose payout was received or is
+    // still in flight. A winner whose payout FAILED never received the
+    // pool, so that member remains eligible for future lotteries.
+    const previousResults = await this.prisma.lotteryResult.findMany({
+      where: { cycle: { committeeId } },
+      select: {
+        winnerMemberId: true,
+        cycle: { select: { payout: { select: { status: true } } } },
+      },
+    });
+
+    const previousWinnerIds = previousResults
+      .filter((r) => r.cycle?.payout?.status !== 'FAILED')
+      .map((r) => r.winnerMemberId);
 
     const eligibleMembers = paidContributions
       .map((c) => c.member)

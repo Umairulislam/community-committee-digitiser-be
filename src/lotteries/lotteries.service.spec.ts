@@ -205,6 +205,55 @@ describe('LotteriesService', () => {
       expect(result.data.map((m) => m.id).sort()).toEqual(['mem-1', 'mem-3']);
     });
 
+    it('should keep a previous winner eligible when their payout FAILED', async () => {
+      mockPrisma.committee.findUnique.mockResolvedValue(mockCommittee);
+      mockPrisma.cycle.findFirst.mockResolvedValue(mockActiveCycle);
+      mockPrisma.lotteryResult.findUnique.mockResolvedValue(null);
+      mockPrisma.contribution.findMany.mockResolvedValue(paidContributions);
+      // mem-2 won before but the payout FAILED; mem-1 won with a completed payout.
+      mockPrisma.lotteryResult.findMany.mockResolvedValue([
+        {
+          winnerMemberId: 'mem-1',
+          cycle: { payout: { status: 'COMPLETED' } },
+        },
+        {
+          winnerMemberId: 'mem-2',
+          cycle: { payout: { status: 'FAILED' } },
+        },
+      ]);
+
+      const result = await service.getEligibleMembers(
+        committeeId,
+        cycleId,
+        adminId,
+      );
+
+      expect(result.total).toBe(2);
+      expect(result.data.map((m) => m.id).sort()).toEqual(['mem-2', 'mem-3']);
+    });
+
+    it('should treat a winner without a payout record as excluded', async () => {
+      mockPrisma.committee.findUnique.mockResolvedValue(mockCommittee);
+      mockPrisma.cycle.findFirst.mockResolvedValue(mockActiveCycle);
+      mockPrisma.lotteryResult.findUnique.mockResolvedValue(null);
+      mockPrisma.contribution.findMany.mockResolvedValue(paidContributions);
+      mockPrisma.lotteryResult.findMany.mockResolvedValue([
+        {
+          winnerMemberId: 'mem-1',
+          cycle: { payout: null },
+        },
+      ]);
+
+      const result = await service.getEligibleMembers(
+        committeeId,
+        cycleId,
+        adminId,
+      );
+
+      expect(result.total).toBe(2);
+      expect(result.data.map((m) => m.id).sort()).toEqual(['mem-2', 'mem-3']);
+    });
+
     it('should return empty list when no paid contributions', async () => {
       mockPrisma.committee.findUnique.mockResolvedValue(mockCommittee);
       mockPrisma.cycle.findFirst.mockResolvedValue(mockActiveCycle);
