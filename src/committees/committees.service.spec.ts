@@ -7,6 +7,7 @@ import {
 import { CommitteesService } from './committees.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('CommitteesService', () => {
   let service: CommitteesService;
@@ -44,11 +45,13 @@ describe('CommitteesService', () => {
       delete: jest.fn(),
       count: jest.fn(),
     },
+    committeeMember: { findMany: jest.fn() },
     auditLog: { create: jest.fn() },
     $transaction: jest.fn(),
   };
 
   const mockAuditService = { log: jest.fn() };
+  const mockNotificationsService = { create: jest.fn(), createMany: jest.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -56,6 +59,7 @@ describe('CommitteesService', () => {
         CommitteesService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: AuditService, useValue: mockAuditService },
+        { provide: NotificationsService, useValue: mockNotificationsService },
       ],
     }).compile();
 
@@ -210,6 +214,7 @@ describe('CommitteesService', () => {
       mockPrisma.$transaction.mockResolvedValue([
         { ...mockCommitteeWithCreator, status: 'ACTIVE' },
       ]);
+      mockPrisma.committeeMember.findMany.mockResolvedValue([]);
 
       const result = await service.updateStatus(
         'comm-1',
@@ -228,6 +233,7 @@ describe('CommitteesService', () => {
       mockPrisma.$transaction.mockResolvedValue([
         { ...mockCommitteeWithCreator, status: 'PAUSED' },
       ]);
+      mockPrisma.committeeMember.findMany.mockResolvedValue([]);
 
       const result = await service.updateStatus(
         'comm-1',

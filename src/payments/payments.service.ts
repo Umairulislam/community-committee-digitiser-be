@@ -6,11 +6,13 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   Payment,
   PaymentStatus,
   ContributionStatus,
   Committee,
+  NotificationType,
 } from '@prisma/client';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { QueryPaymentDto } from './dto/query-payment.dto';
@@ -87,6 +89,7 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async create(
@@ -285,6 +288,18 @@ export class PaymentsService {
       }),
     ]);
 
+    // Notify the member whose payment was verified
+    const memberUserId = (verifiedPayment as any).contribution?.member?.user?.id;
+    if (memberUserId) {
+      await this.notificationsService.create({
+        userId: memberUserId,
+        type: NotificationType.PAYMENT_VERIFIED,
+        title: 'Payment Verified',
+        message: `Your payment of ${paymentAmount} has been verified.`,
+        committeeId,
+      });
+    }
+
     return verifiedPayment as PaymentWithContribution;
   }
 
@@ -333,6 +348,18 @@ export class PaymentsService {
       cycleId: payment.contribution.cycleId,
       metadata: { amount: toNumber(payment.amount) },
     });
+
+    // Notify the member whose payment was rejected
+    const memberUserId = (rejectedPayment as any).contribution?.member?.user?.id;
+    if (memberUserId) {
+      await this.notificationsService.create({
+        userId: memberUserId,
+        type: NotificationType.PAYMENT_REJECTED,
+        title: 'Payment Rejected',
+        message: `Your payment of ${toNumber(payment.amount)} has been rejected. Please contact the committee admin for details.`,
+        committeeId,
+      });
+    }
 
     return rejectedPayment as PaymentWithContribution;
   }

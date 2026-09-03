@@ -6,7 +6,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { Committee, CommitteeStatus } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
+import { Committee, CommitteeStatus, NotificationType } from '@prisma/client';
 import { CreateCommitteeDto } from './dto/create-committee.dto';
 import { UpdateCommitteeDto } from './dto/update-committee.dto';
 import { QueryCommitteeDto } from './dto/query-committee.dto';
@@ -33,6 +34,7 @@ export class CommitteesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async create(dto: CreateCommitteeDto, userId: string): Promise<CommitteeWithCreator> {
@@ -196,6 +198,21 @@ export class CommitteesService {
         },
       }),
     ]);
+
+    // Notify all active members about the committee status change
+    const members = await this.prisma.committeeMember.findMany({
+      where: { committeeId: id, status: 'ACTIVE' },
+      select: { userId: true },
+    });
+    const memberUserIds = members.map((m) => m.userId).filter((uid) => uid !== userId);
+    if (memberUserIds.length > 0) {
+      await this.notificationsService.createMany(memberUserIds, {
+        type: NotificationType.COMMITTEE_STATUS_CHANGED,
+        title: 'Committee Status Changed',
+        message: `The committee status has been updated from ${currentStatus} to ${newStatus}.`,
+        committeeId: id,
+      });
+    }
 
     return updated as CommitteeWithCreator;
   }

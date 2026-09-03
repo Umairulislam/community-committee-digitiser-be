@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { LotteriesService } from './lotteries.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('LotteriesService', () => {
   let service: LotteriesService;
@@ -81,7 +82,7 @@ describe('LotteriesService', () => {
 
   const mockPrisma = {
     committee: { findUnique: jest.fn() },
-    committeeMember: { findUnique: jest.fn() },
+    committeeMember: { findUnique: jest.fn(), findMany: jest.fn() },
     cycle: { findFirst: jest.fn(), update: jest.fn() },
     contribution: { findMany: jest.fn() },
     lotteryResult: {
@@ -94,6 +95,7 @@ describe('LotteriesService', () => {
   };
 
   const mockAuditService = { log: jest.fn() };
+  const mockNotificationsService = { create: jest.fn(), createMany: jest.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -101,6 +103,7 @@ describe('LotteriesService', () => {
         LotteriesService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: AuditService, useValue: mockAuditService },
+        { provide: NotificationsService, useValue: mockNotificationsService },
       ],
     }).compile();
 
@@ -281,6 +284,7 @@ describe('LotteriesService', () => {
       mockPrisma.cycle.findFirst.mockResolvedValue(mockActiveCycle);
       mockPrisma.contribution.findMany.mockResolvedValue(paidContributions);
       mockPrisma.lotteryResult.findMany.mockResolvedValue([]);
+      mockPrisma.committeeMember.findMany.mockResolvedValue([]);
       mockPrisma.$transaction.mockImplementation(async (fnOrOps) => {
         if (typeof fnOrOps === 'function') {
           return fnOrOps(mockPrisma);

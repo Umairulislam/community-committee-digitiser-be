@@ -6,7 +6,8 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Cycle, CycleStatus, Committee } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
+import { Cycle, CycleStatus, Committee, NotificationType } from '@prisma/client';
 import { QueryCycleDto } from './dto/query-cycle.dto';
 
 const VALID_TRANSITIONS: Record<CycleStatus, CycleStatus[]> = {
@@ -18,7 +19,10 @@ const VALID_TRANSITIONS: Record<CycleStatus, CycleStatus[]> = {
 
 @Injectable()
 export class CyclesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async generate(
     committeeId: string,
@@ -195,6 +199,26 @@ export class CyclesService {
     return this.prisma.cycle.update({
       where: { id },
       data,
+    }).then(async (updated) => {
+      // Notify all active members about cycle status changes
+      if (newStatus === CycleStatus.ACTIVE || newStatus === CycleStatus.COMPLETED) {
+        const members = await this.prisma.committeeMember.findMany({
+          where: { committeeId, status: 'ACTIVE' },
+          select: { userId: true },
+        });
+        const memberUserIds = members.map((m) => m.userId);
+        if (memberUserIds.length > 0) {
+          await this.notificationsService.createMany(memberUserIds, {
+            type: newStatus === CycleStatus.ACTIVE ? NotificationType.CYCLE_STARTED : NotificationType.CYCLE_COMPLETED,
+            title: newStatus === CycleStatus.ACTIVE ? 'Cycle Started' : 'Cycle Completed',
+            message: newStatus === CycleStatus.ACTIVE
+              ? `Cycle ${cycle.cycleNumber} has started. Please make your contribution.`
+              : `Cycle ${cycle.cycleNumber} has been completed.`,
+            committeeId,
+          });
+        }
+      }
+      return updated;
     });
   }
 
@@ -241,6 +265,21 @@ export class CyclesService {
         data: { status: 'COMPLETED' },
       });
 
+      // Notify members that the last cycle and committee are completed
+      const members = await this.prisma.committeeMember.findMany({
+        where: { committeeId, status: 'ACTIVE' },
+        select: { userId: true },
+      });
+      const memberUserIds = members.map((m) => m.userId);
+      if (memberUserIds.length > 0) {
+        await this.notificationsService.createMany(memberUserIds, {
+          type: NotificationType.CYCLE_COMPLETED,
+          title: 'Cycle Completed',
+          message: `The final cycle (${activeCycle.cycleNumber}) has been completed. The committee is now marked as completed.`,
+          committeeId,
+        });
+      }
+
       return { completed, activated: null, committeeCompleted: true };
     }
 
@@ -254,6 +293,27 @@ export class CyclesService {
         data: { status: CycleStatus.ACTIVE, startDate: now },
       }),
     ]);
+
+    // Notify members about cycle completion and next cycle starting
+    const members = await this.prisma.committeeMember.findMany({
+      where: { committeeId, status: 'ACTIVE' },
+      select: { userId: true },
+    });
+    const memberUserIds = members.map((m) => m.userId);
+    if (memberUserIds.length > 0) {
+      await this.notificationsService.createMany(memberUserIds, {
+        type: NotificationType.CYCLE_COMPLETED,
+        title: 'Cycle Completed',
+        message: `Cycle ${activeCycle.cycleNumber} has been completed.`,
+        committeeId,
+      });
+      await this.notificationsService.createMany(memberUserIds, {
+        type: NotificationType.CYCLE_STARTED,
+        title: 'New Cycle Started',
+        message: `Cycle ${nextCycle.cycleNumber} has started. Please make your contribution.`,
+        committeeId,
+      });
+    }
 
     return { completed, activated, committeeCompleted: false };
   }

@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { CyclesService } from './cycles.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('CyclesService', () => {
   let service: CyclesService;
@@ -84,11 +85,14 @@ describe('CyclesService', () => {
     $transaction: jest.fn(),
   };
 
+  const mockNotificationsService = { create: jest.fn(), createMany: jest.fn() };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CyclesService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: NotificationsService, useValue: mockNotificationsService },
       ],
     }).compile();
 
@@ -419,6 +423,7 @@ describe('CyclesService', () => {
         status: 'COMPLETED',
         endDate: expect.any(Date),
       });
+      mockPrisma.committeeMember.findMany.mockResolvedValue([]);
 
       const result = await service.updateStatus(
         committeeId,
@@ -445,6 +450,7 @@ describe('CyclesService', () => {
         status: 'ACTIVE',
         startDate: expect.any(Date),
       });
+      mockPrisma.committeeMember.findMany.mockResolvedValue([]);
 
       const result = await service.updateStatus(
         committeeId,
@@ -579,6 +585,7 @@ describe('CyclesService', () => {
         status: 'COMPLETED',
         endDate: new Date(),
       });
+      mockPrisma.committeeMember.findMany.mockResolvedValue([]);
 
       await service.updateStatus(
         committeeId,
@@ -609,6 +616,7 @@ describe('CyclesService', () => {
         { ...mockCycle, status: 'COMPLETED', endDate: new Date() },
         { ...mockCycle2, status: 'ACTIVE', startDate: new Date() },
       ]);
+      mockPrisma.committeeMember.findMany.mockResolvedValue([]);
 
       const result = await service.startNext(committeeId, adminId);
 
@@ -632,6 +640,7 @@ describe('CyclesService', () => {
         ...mockCommittee,
         status: 'COMPLETED',
       });
+      mockPrisma.committeeMember.findMany.mockResolvedValue([]);
 
       const result = await service.startNext(committeeId, adminId);
 
@@ -694,6 +703,7 @@ describe('CyclesService', () => {
         { ...mockCycle, status: 'COMPLETED', endDate: new Date() },
         { ...mockCycle2, status: 'ACTIVE', startDate: new Date() },
       ]);
+      mockPrisma.committeeMember.findMany.mockResolvedValue([]);
 
       await service.startNext(committeeId, adminId);
 

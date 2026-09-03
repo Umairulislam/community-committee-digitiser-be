@@ -7,7 +7,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { Payout, PayoutStatus, Cycle, Committee, Prisma } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
+import { Payout, PayoutStatus, Cycle, Committee, Prisma, NotificationType } from '@prisma/client';
 import { UpdatePayoutStatusDto } from './dto/update-payout-status.dto';
 import { QueryPayoutDto } from './dto/query-payout.dto';
 
@@ -57,6 +58,7 @@ export class PayoutsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -260,6 +262,23 @@ export class PayoutsService {
       cycleId: payout.cycleId,
       metadata: { previousStatus: payout.status, newStatus: dto.status },
     });
+
+    // Send notification to the winner when payout is completed
+    if (dto.status === PayoutStatus.COMPLETED) {
+      const payoutWithMember = await this.prisma.payout.findUnique({
+        where: { id: payout.id },
+        include: { member: { select: { userId: true } } },
+      });
+      if (payoutWithMember) {
+        await this.notificationsService.create({
+          userId: payoutWithMember.member.userId,
+          type: NotificationType.PAYOUT_COMPLETED,
+          title: 'Payout Completed',
+          message: `Your payout for cycle has been completed. Amount: ${toNumber(payoutWithMember.amount)}`,
+          committeeId,
+        });
+      }
+    }
 
     return updated as PayoutWithDetails;
   }

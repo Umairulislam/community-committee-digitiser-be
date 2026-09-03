@@ -90,6 +90,20 @@ enum AuditAction {
   PAYOUT_STATUS_CHANGED
 }
 
+enum NotificationType {
+  COMMITTEE_INVITATION
+  COMMITTEE_STATUS_CHANGED
+  CYCLE_STARTED
+  CYCLE_COMPLETED
+  CONTRIBUTION_REMINDER
+  CONTRIBUTION_OVERDUE
+  PAYMENT_VERIFIED
+  PAYMENT_REJECTED
+  LOTTERY_COMPLETED
+  PAYOUT_COMPLETED
+  GENERAL
+}
+
 model User {
   id           String     @id @default(uuid())
   name         String
@@ -104,6 +118,7 @@ model User {
   committees   Committee[]
   memberships  CommitteeMember[]
   invitations  Invitation[]
+  notifications Notification[]
 
   @@map("users")
 }
@@ -127,6 +142,7 @@ model Committee {
   members    CommitteeMember[]
   invitations Invitation[]
   cycles     Cycle[]
+  notifications Notification[]
 
   @@map("committees")
 }
@@ -273,4 +289,21 @@ model AuditLog {
   @@index([committeeId, createdAt(sort: Desc)])
   @@index([entityType, entityId])
   @@map("audit_logs")
+}
+
+model Notification {
+  id          String           @id @default(uuid())
+  userId      String
+  type        NotificationType
+  title       String
+  message     String
+  read        Boolean          @default(false)
+  committeeId String?
+  createdAt   DateTime         @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  committee Committee? @relation(fields: [committeeId], references: [id], onDelete: SetNull)
+
+  @@index([userId, read, createdAt(sort: Desc)])
+  @@map("notifications")
 }

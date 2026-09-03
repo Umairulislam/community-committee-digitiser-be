@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   LotteryResult,
   Cycle,
@@ -16,6 +17,7 @@ import {
   Committee,
   CommitteeMember,
   Prisma,
+  NotificationType,
 } from '@prisma/client';
 
 type LotteryResultWithDetails = LotteryResult & {
@@ -45,6 +47,7 @@ export class LotteriesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -214,10 +217,27 @@ export class LotteriesService {
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
 
-      return this.prisma.lotteryResult.findUnique({
+      const resultWithDetails = await this.prisma.lotteryResult.findUnique({
         where: { id: result.id },
         include: RESULT_INCLUDE,
-      }) as Promise<LotteryResultWithDetails>;
+      }) as LotteryResultWithDetails;
+
+      // Send notification to all committee members about lottery completion
+      const members = await this.prisma.committeeMember.findMany({
+        where: { committeeId, status: 'ACTIVE' },
+        select: { userId: true },
+      });
+      const userIds = members.map((m) => m.userId);
+      if (userIds.length > 0) {
+        await this.notificationsService.createMany(userIds, {
+          type: NotificationType.LOTTERY_COMPLETED,
+          title: 'Lottery Completed',
+          message: `The lottery for cycle ${cycle.cycleNumber} has been completed. Winner: ${resultWithDetails.winner.user.name}`,
+          committeeId,
+        });
+      }
+
+      return resultWithDetails;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&

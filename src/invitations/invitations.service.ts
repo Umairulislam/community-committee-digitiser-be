@@ -7,7 +7,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { Invitation, InvitationStatus } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
+import { Invitation, InvitationStatus, NotificationType } from '@prisma/client';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { QueryInvitationDto } from './dto/query-invitation.dto';
 import * as crypto from 'crypto';
@@ -32,6 +33,7 @@ export class InvitationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async create(
@@ -102,6 +104,17 @@ export class InvitationsService {
       committeeId,
       metadata: { email: dto.email },
     });
+
+    // Notify the invited user if they already have an account
+    if (user) {
+      await this.notificationsService.create({
+        userId: user.id,
+        type: NotificationType.COMMITTEE_INVITATION,
+        title: 'Committee Invitation',
+        message: `You have been invited to join "${committee.name}". Check your email for the invitation link.`,
+        committeeId,
+      });
+    }
 
     return invitation as InvitationWithRelations;
   }
@@ -223,6 +236,25 @@ export class InvitationsService {
         },
       }),
     ]);
+
+    // Notify the committee admin that the invitation was accepted
+    const committeeWithCreator = await this.prisma.committee.findUnique({
+      where: { id: invitation.committeeId },
+      select: { createdBy: true, name: true },
+    });
+    if (committeeWithCreator) {
+      const accepter = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true },
+      });
+      await this.notificationsService.create({
+        userId: committeeWithCreator.createdBy,
+        type: NotificationType.COMMITTEE_INVITATION,
+        title: 'Invitation Accepted',
+        message: `${accepter?.name ?? 'A user'} has accepted the invitation to join "${committeeWithCreator.name}".`,
+        committeeId: invitation.committeeId,
+      });
+    }
 
     return updatedInvitation as InvitationWithRelations;
   }
