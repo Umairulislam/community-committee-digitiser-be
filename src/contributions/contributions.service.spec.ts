@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ContributionsService } from './contributions.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 
 describe('ContributionsService', () => {
   let service: ContributionsService;
@@ -98,11 +99,14 @@ describe('ContributionsService', () => {
     $transaction: jest.fn(),
   };
 
+  const mockAuditService = { log: jest.fn() };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ContributionsService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
 

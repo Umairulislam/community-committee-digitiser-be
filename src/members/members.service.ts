@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { CommitteeMember } from '@prisma/client';
 import { QueryMemberDto } from './dto/query-member.dto';
 
@@ -18,7 +19,10 @@ const MEMBER_INCLUDE = {
 
 @Injectable()
 export class MembersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async findAll(
     committeeId: string,
@@ -91,6 +95,14 @@ export class MembersService {
     await this.prisma.committeeMember.update({
       where: { id },
       data: { status: 'REMOVED', removedAt: new Date() },
+    });
+
+    await this.auditService.log({
+      actorId: adminId,
+      action: 'MEMBER_REMOVED',
+      entityType: 'CommitteeMember',
+      entityId: id,
+      committeeId,
     });
 
     return { message: 'Member removed' };

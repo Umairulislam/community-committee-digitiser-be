@@ -8,6 +8,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PayoutsService } from './payouts.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 
 describe('PayoutsService', () => {
   let service: PayoutsService;
@@ -76,11 +77,14 @@ describe('PayoutsService', () => {
     },
   };
 
+  const mockAuditService = { log: jest.fn() };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PayoutsService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
 

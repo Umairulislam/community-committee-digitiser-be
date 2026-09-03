@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { CommitteesService } from './committees.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 
 describe('CommitteesService', () => {
   let service: CommitteesService;
@@ -43,13 +44,18 @@ describe('CommitteesService', () => {
       delete: jest.fn(),
       count: jest.fn(),
     },
+    auditLog: { create: jest.fn() },
+    $transaction: jest.fn(),
   };
+
+  const mockAuditService = { log: jest.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CommitteesService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
 
@@ -201,10 +207,9 @@ describe('CommitteesService', () => {
   describe('updateStatus', () => {
     it('should transition DRAFT to ACTIVE', async () => {
       mockPrisma.committee.findUnique.mockResolvedValue(mockCommittee);
-      mockPrisma.committee.update.mockResolvedValue({
-        ...mockCommitteeWithCreator,
-        status: 'ACTIVE',
-      });
+      mockPrisma.$transaction.mockResolvedValue([
+        { ...mockCommitteeWithCreator, status: 'ACTIVE' },
+      ]);
 
       const result = await service.updateStatus(
         'comm-1',
@@ -220,10 +225,9 @@ describe('CommitteesService', () => {
         ...mockCommittee,
         status: 'ACTIVE',
       });
-      mockPrisma.committee.update.mockResolvedValue({
-        ...mockCommitteeWithCreator,
-        status: 'PAUSED',
-      });
+      mockPrisma.$transaction.mockResolvedValue([
+        { ...mockCommitteeWithCreator, status: 'PAUSED' },
+      ]);
 
       const result = await service.updateStatus(
         'comm-1',

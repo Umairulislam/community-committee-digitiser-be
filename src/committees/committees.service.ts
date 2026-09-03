@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { Committee, CommitteeStatus } from '@prisma/client';
 import { CreateCommitteeDto } from './dto/create-committee.dto';
 import { UpdateCommitteeDto } from './dto/update-committee.dto';
@@ -29,7 +30,10 @@ const VALID_TRANSITIONS: Record<CommitteeStatus, CommitteeStatus[]> = {
 
 @Injectable()
 export class CommitteesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async create(dto: CreateCommitteeDto, userId: string): Promise<CommitteeWithCreator> {
     const committee = await this.prisma.committee.create({
@@ -46,6 +50,14 @@ export class CommitteesService {
       include: {
         creator: { select: { id: true, name: true, email: true } },
       },
+    });
+
+    await this.auditService.log({
+      actorId: userId,
+      action: 'COMMITTEE_CREATED',
+      entityType: 'Committee',
+      entityId: committee.id,
+      committeeId: committee.id,
     });
 
     return committee as CommitteeWithCreator;
@@ -132,6 +144,15 @@ export class CommitteesService {
       },
     });
 
+    await this.auditService.log({
+      actorId: userId,
+      action: 'COMMITTEE_UPDATED',
+      entityType: 'Committee',
+      entityId: id,
+      committeeId: id,
+      metadata: { changedFields: Object.keys(data) },
+    });
+
     return updated as CommitteeWithCreator;
   }
 
@@ -156,13 +177,25 @@ export class CommitteesService {
       );
     }
 
-    const updated = await this.prisma.committee.update({
-      where: { id },
-      data: { status: newStatus },
-      include: {
-        creator: { select: { id: true, name: true, email: true } },
-      },
-    });
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.committee.update({
+        where: { id },
+        data: { status: newStatus },
+        include: {
+          creator: { select: { id: true, name: true, email: true } },
+        },
+      }),
+      this.prisma.auditLog.create({
+        data: {
+          actorId: userId,
+          action: 'COMMITTEE_STATUS_CHANGED',
+          entityType: 'Committee',
+          entityId: id,
+          committeeId: id,
+          metadata: { previousStatus: currentStatus, newStatus },
+        },
+      }),
+    ]);
 
     return updated as CommitteeWithCreator;
   }

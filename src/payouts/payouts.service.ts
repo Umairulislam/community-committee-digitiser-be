@@ -6,6 +6,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { Payout, PayoutStatus, Cycle, Committee, Prisma } from '@prisma/client';
 import { UpdatePayoutStatusDto } from './dto/update-payout-status.dto';
 import { QueryPayoutDto } from './dto/query-payout.dto';
@@ -53,7 +54,10 @@ function toNumber(value: unknown): number {
 
 @Injectable()
 export class PayoutsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   /**
    * Create the payout for a cycle after a valid lottery winner exists.
@@ -96,7 +100,7 @@ export class PayoutsService {
     }
 
     try {
-      return (await this.prisma.payout.create({
+      const created = (await this.prisma.payout.create({
         data: {
           cycleId,
           memberId: lotteryResult.winnerMemberId,
@@ -105,6 +109,18 @@ export class PayoutsService {
         },
         include: PAYOUT_INCLUDE,
       })) as PayoutWithDetails;
+
+      await this.auditService.log({
+        actorId: userId,
+        action: 'PAYOUT_CREATED',
+        entityType: 'Payout',
+        entityId: created.id,
+        committeeId,
+        cycleId,
+        metadata: { amount, memberId: lotteryResult.winnerMemberId },
+      });
+
+      return created;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -233,6 +249,16 @@ export class PayoutsService {
       where: { id: payout.id },
       data,
       include: PAYOUT_INCLUDE,
+    });
+
+    await this.auditService.log({
+      actorId: userId,
+      action: 'PAYOUT_STATUS_CHANGED',
+      entityType: 'Payout',
+      entityId: payout.id,
+      committeeId,
+      cycleId: payout.cycleId,
+      metadata: { previousStatus: payout.status, newStatus: dto.status },
     });
 
     return updated as PayoutWithDetails;

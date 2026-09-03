@@ -75,6 +75,21 @@ enum PayoutStatus {
   FAILED
 }
 
+enum AuditAction {
+  COMMITTEE_CREATED
+  COMMITTEE_UPDATED
+  COMMITTEE_STATUS_CHANGED
+  MEMBER_INVITED
+  MEMBER_JOINED
+  MEMBER_REMOVED
+  PAYMENT_VERIFIED
+  PAYMENT_REJECTED
+  CONTRIBUTION_STATUS_CHANGED
+  LOTTERY_EXECUTED
+  PAYOUT_CREATED
+  PAYOUT_STATUS_CHANGED
+}
+
 model User {
   id           String     @id @default(uuid())
   name         String
@@ -242,4 +257,20 @@ model Payout {
   member CommitteeMember @relation(fields: [memberId], references: [id])
 
   @@map("payouts")
+}
+
+model AuditLog {
+  id          String      @id @default(uuid())
+  actorId     String
+  action      AuditAction
+  entityType  String
+  entityId    String
+  committeeId String?
+  cycleId     String?
+  metadata    Json?
+  createdAt   DateTime    @default(now())
+
+  @@index([committeeId, createdAt(sort: Desc)])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
 }

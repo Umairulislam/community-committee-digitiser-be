@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { MembersService } from './members.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 
 describe('MembersService', () => {
   let service: MembersService;
@@ -44,11 +45,14 @@ describe('MembersService', () => {
     },
   };
 
+  const mockAuditService = { log: jest.fn() };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MembersService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
 

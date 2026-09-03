@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import {
   Payment,
   PaymentStatus,
@@ -83,7 +84,10 @@ function toNumber(value: unknown): number {
 
 @Injectable()
 export class PaymentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async create(
     committeeId: string,
@@ -268,6 +272,17 @@ export class PaymentsService {
           },
         },
       }),
+      this.prisma.auditLog.create({
+        data: {
+          actorId: userId,
+          action: 'PAYMENT_VERIFIED',
+          entityType: 'Payment',
+          entityId: payment.id,
+          committeeId,
+          cycleId: payment.contribution.cycleId,
+          metadata: { amount: paymentAmount, contributionId: payment.contributionId },
+        },
+      }),
     ]);
 
     return verifiedPayment as PaymentWithContribution;
@@ -307,6 +322,16 @@ export class PaymentsService {
       where: { id: payment.id },
       data: { status: PaymentStatus.REJECTED, verifiedAt: new Date() },
       include: CONTRIBUTION_INCLUDE,
+    });
+
+    await this.auditService.log({
+      actorId: userId,
+      action: 'PAYMENT_REJECTED',
+      entityType: 'Payment',
+      entityId: payment.id,
+      committeeId,
+      cycleId: payment.contribution.cycleId,
+      metadata: { amount: toNumber(payment.amount) },
     });
 
     return rejectedPayment as PaymentWithContribution;

@@ -7,6 +7,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import {
   LotteryResult,
   Cycle,
@@ -41,7 +42,10 @@ const RESULT_INCLUDE = {
 
 @Injectable()
 export class LotteriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   /**
    * Check whether a cycle is eligible for lottery without running it.
@@ -188,6 +192,21 @@ export class LotteriesService {
           await tx.cycle.update({
             where: { id: cycleId },
             data: { status: CycleStatus.COMPLETED, endDate: new Date() },
+          });
+
+          await tx.auditLog.create({
+            data: {
+              actorId: userId,
+              action: 'LOTTERY_EXECUTED',
+              entityType: 'LotteryResult',
+              entityId: created.id,
+              committeeId,
+              cycleId,
+              metadata: {
+                winnerMemberId: winner.id,
+                eligibleMemberCount: eligibleMembers.length,
+              },
+            },
           });
 
           return created;

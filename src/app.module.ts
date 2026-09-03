@@ -12,6 +12,7 @@ import { ContributionsModule } from './contributions/contributions.module';
 import { PaymentsModule } from './payments/payments.module';
 import { LotteriesModule } from './lotteries/lotteries.module';
 import { PayoutsModule } from './payouts/payouts.module';
+import { AuditModule } from './audit/audit.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -32,6 +33,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     PaymentsModule,
     LotteriesModule,
     PayoutsModule,
+    AuditModule,
   ],
   controllers: [AppController],
   providers: [

@@ -6,6 +6,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { Invitation, InvitationStatus } from '@prisma/client';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { QueryInvitationDto } from './dto/query-invitation.dto';
@@ -28,7 +29,10 @@ const INVITE_INCLUDE = {
 
 @Injectable()
 export class InvitationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async create(
     committeeId: string,
@@ -88,6 +92,15 @@ export class InvitationsService {
     const invitation = await this.prisma.invitation.create({
       data: { committeeId, invitedBy: adminId, email: dto.email, token, expiresAt },
       include: INVITE_INCLUDE,
+    });
+
+    await this.auditService.log({
+      actorId: adminId,
+      action: 'MEMBER_INVITED',
+      entityType: 'Invitation',
+      entityId: invitation.id,
+      committeeId,
+      metadata: { email: dto.email },
     });
 
     return invitation as InvitationWithRelations;
@@ -200,6 +213,15 @@ export class InvitationsService {
               joinedAt: new Date(),
             },
           }),
+      this.prisma.auditLog.create({
+        data: {
+          actorId: userId,
+          action: 'MEMBER_JOINED',
+          entityType: 'Invitation',
+          entityId: invitation.id,
+          committeeId: invitation.committeeId,
+        },
+      }),
     ]);
 
     return updatedInvitation as InvitationWithRelations;

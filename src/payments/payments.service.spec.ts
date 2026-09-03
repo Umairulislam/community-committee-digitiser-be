@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 
 describe('PaymentsService', () => {
   let service: PaymentsService;
@@ -81,14 +82,18 @@ describe('PaymentsService', () => {
     contribution: { findFirst: jest.fn(), update: jest.fn() },
     cycle: { findMany: jest.fn(), update: jest.fn() },
     payment: { create: jest.fn(), findMany: jest.fn(), findFirst: jest.fn(), count: jest.fn(), update: jest.fn() },
+    auditLog: { create: jest.fn() },
     $transaction: jest.fn(),
   };
+
+  const mockAuditService = { log: jest.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PaymentsService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
 

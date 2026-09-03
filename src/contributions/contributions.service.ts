@@ -6,6 +6,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { Contribution, ContributionStatus, Committee, Cycle } from '@prisma/client';
 import { QueryContributionDto } from './dto/query-contribution.dto';
 
@@ -38,7 +39,10 @@ function toNumber(value: unknown): number {
 
 @Injectable()
 export class ContributionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async generate(
     committeeId: string,
@@ -225,6 +229,18 @@ export class ContributionsService {
       },
       data: { status: ContributionStatus.OVERDUE },
     });
+
+    if (result.count > 0) {
+      await this.auditService.log({
+        actorId: userId,
+        action: 'CONTRIBUTION_STATUS_CHANGED',
+        entityType: 'Contribution',
+        entityId: cycleId,
+        committeeId,
+        cycleId,
+        metadata: { previousStatus: 'PENDING', newStatus: 'OVERDUE', count: result.count },
+      });
+    }
 
     return { marked: result.count };
   }
