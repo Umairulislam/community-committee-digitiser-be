@@ -123,6 +123,7 @@ model CommitteeMember {
   committee Committee @relation(fields: [committeeId], references: [id])
   user      User      @relation(fields: [userId], references: [id])
   contributions Contribution[]
+  lotteryWins   LotteryResult[]
 
   @@unique([userId, committeeId])
   @@map("committee_members")
@@ -179,6 +180,7 @@ model Cycle {
 
   committee  Committee      @relation(fields: [committeeId], references: [id])
   contributions Contribution[]
+  lotteryResult LotteryResult?
 
   @@unique([committeeId, cycleNumber])
   @@map("cycles")
@@ -199,4 +201,19 @@ model Payment {
   contribution Contribution @relation(fields: [contributionId], references: [id])
 
   @@map("payments")
+}
+
+model LotteryResult {
+  id                  String   @id @default(uuid())
+  cycleId             String   @unique
+  winnerMemberId      String
+  eligibleMemberCount Int
+  executedAt          DateTime @default(now())
+  executedBy          String
+  createdAt           DateTime @default(now())
+
+  cycle  Cycle           @relation(fields: [cycleId], references: [id])
+  winner CommitteeMember @relation(fields: [winnerMemberId], references: [id])
+
+  @@map("lottery_results")
 }

@@ -10,6 +10,7 @@ import { InvitationsModule } from './invitations/invitations.module';
 import { CyclesModule } from './cycles/cycles.module';
 import { ContributionsModule } from './contributions/contributions.module';
 import { PaymentsModule } from './payments/payments.module';
+import { LotteriesModule } from './lotteries/lotteries.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -28,6 +29,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     CyclesModule,
     ContributionsModule,
     PaymentsModule,
+    LotteriesModule,
   ],
   controllers: [AppController],
   providers: [
