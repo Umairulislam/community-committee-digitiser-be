@@ -15,6 +15,7 @@ import { PayoutsModule } from './payouts/payouts.module';
 import { AuditModule } from './audit/audit.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
+import { AiModule } from './ai/ai.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -38,6 +39,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     AuditModule,
     NotificationsModule,
     ReportsModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [
