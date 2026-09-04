@@ -127,6 +127,34 @@ describe('AuthService', () => {
         }),
       ).rejects.toThrow(UnauthorizedException);
     });
+
+    it('should throw UnauthorizedException for suspended user', async () => {
+      jest
+        .spyOn(usersService, 'findByEmail')
+        .mockResolvedValue({ ...mockUser, status: 'SUSPENDED' });
+      (bcrypt.compare as jest.Mock).mockResolvedValueOnce(true);
+
+      await expect(
+        authService.login({
+          email: 'test@example.com',
+          password: 'password123',
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should throw UnauthorizedException for inactive user', async () => {
+      jest
+        .spyOn(usersService, 'findByEmail')
+        .mockResolvedValue({ ...mockUser, status: 'INACTIVE' });
+      (bcrypt.compare as jest.Mock).mockResolvedValueOnce(true);
+
+      await expect(
+        authService.login({
+          email: 'test@example.com',
+          password: 'password123',
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
   });
 
   describe('generateToken', () => {

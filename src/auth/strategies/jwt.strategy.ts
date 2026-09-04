@@ -37,6 +37,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       throw new UnauthorizedException();
     }
-    return user;
+
+    if (user.status !== 'ACTIVE') {
+      throw new UnauthorizedException();
+    }
+
+    // Attach only the fields consumers need; never leak passwordHash
+    // or other sensitive columns onto the request object.
+    return { id: user.id, email: user.email, role: user.role };
   }
 }

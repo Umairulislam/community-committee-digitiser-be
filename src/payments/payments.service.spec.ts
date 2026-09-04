@@ -210,6 +210,26 @@ describe('PaymentsService', () => {
 
       expect(result.id).toBe('pay-1');
     });
+
+    it('should attribute payment to the contribution member when admin records on behalf', async () => {
+      // Admin is the committee creator without a membership record.
+      mockPrisma.committee.findUnique.mockResolvedValue(mockCommittee);
+      mockPrisma.contribution.findFirst.mockResolvedValue(mockContribution);
+      mockPrisma.payment.create.mockResolvedValue(mockPayment);
+
+      const result = await service.create(committeeId, {
+        contributionId,
+        amount: 10000,
+        transactionReference: 'TXN-008',
+      }, adminId);
+
+      expect(mockPrisma.payment.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ memberId: memberRecordId }),
+        }),
+      );
+      expect(result.id).toBe('pay-1');
+    });
   });
 
   describe('findAll', () => {

@@ -39,6 +39,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    if (user.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Account is not active');
+    }
+
     return { user: this.usersService.toSafeUser(user) };
   }
 

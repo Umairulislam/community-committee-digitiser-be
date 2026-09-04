@@ -129,12 +129,13 @@ export class PaymentsService {
       );
     }
 
-    const memberId = await this.resolveMemberId(committeeId, userId);
-
     const payment = await this.prisma.payment.create({
       data: {
         contributionId: dto.contributionId,
-        memberId,
+        // The payment fulfils this contribution's obligation, so attribute it
+        // to the contribution's member rather than the submitting user (who
+        // may be the committee admin recording a payment on behalf).
+        memberId: contribution.memberId,
         amount: dto.amount,
         transactionReference: dto.transactionReference,
         status: PaymentStatus.PENDING,
@@ -362,30 +363,6 @@ export class PaymentsService {
     }
 
     return rejectedPayment as PaymentWithContribution;
-  }
-
-  private async resolveMemberId(
-    committeeId: string,
-    userId: string,
-  ): Promise<string> {
-    const committee = await this.prisma.committee.findUnique({
-      where: { id: committeeId },
-    });
-
-    if (committee?.createdBy === userId) {
-      const adminMember = await this.prisma.committeeMember.findUnique({
-        where: { userId_committeeId: { userId, committeeId } },
-      });
-      if (adminMember) return adminMember.id;
-      return committee.createdBy;
-    }
-
-    const membership = await this.prisma.committeeMember.findUnique({
-      where: { userId_committeeId: { userId, committeeId } },
-    });
-
-    if (!membership) return userId;
-    return membership.id;
   }
 
   private async requireOwnedCommittee(
