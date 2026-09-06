@@ -8,7 +8,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { Invitation, InvitationStatus, NotificationType } from '@prisma/client';
+import { Invitation, InvitationStatus, CommitteeStatus, NotificationType } from '@prisma/client';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { QueryInvitationDto } from './dto/query-invitation.dto';
 import * as crypto from 'crypto';
@@ -18,10 +18,28 @@ interface AuthUser {
   role: string;
 }
 
-type InvitationWithRelations = Invitation & {
+export type InvitationWithRelations = Invitation & {
   committee: { id: string; name: string };
   inviter: { id: string; name: string; email: string };
 };
+
+export interface MembershipSummary {
+  id: string;
+  committeeId: string;
+  userId: string;
+  role: string;
+  status: string;
+  joinedAt: Date | null;
+}
+
+export type AcceptanceResult = {
+  invitation: InvitationWithRelations;
+  membership: MembershipSummary;
+};
+
+const ACCEPTABLE_COMMITTEE_STATUSES: CommitteeStatus[] = [
+  CommitteeStatus.ACTIVE,
+];
 
 const INVITE_INCLUDE = {
   committee: { select: { id: true, name: true } },
@@ -111,8 +129,9 @@ export class InvitationsService {
         userId: user.id,
         type: NotificationType.COMMITTEE_INVITATION,
         title: 'Committee Invitation',
-        message: `You have been invited to join "${committee.name}". Check your email for the invitation link.`,
+        message: `You have been invited to join "${committee.name}". Click to accept.`,
         committeeId,
+        token,
       });
     }
 
@@ -171,7 +190,8 @@ export class InvitationsService {
   async accept(
     token: string,
     userId: string,
-  ): Promise<InvitationWithRelations> {
+    userEmail: string,
+  ): Promise<AcceptanceResult> {
     const invitation = await this.prisma.invitation.findUnique({
       where: { token },
       include: INVITE_INCLUDE,
@@ -195,6 +215,29 @@ export class InvitationsService {
       throw new BadRequestException('This invitation has expired');
     }
 
+    // Verify the accepting user's email matches the invited email
+    if (invitation.email !== userEmail) {
+      throw new ForbiddenException(
+        'This invitation was not sent to your email address',
+      );
+    }
+
+    // Verify the committee is in a state that accepts new members
+    const committee = await this.prisma.committee.findUnique({
+      where: { id: invitation.committeeId },
+      select: { status: true, createdBy: true, name: true },
+    });
+
+    if (!committee) {
+      throw new NotFoundException('Committee not found');
+    }
+
+    if (!ACCEPTABLE_COMMITTEE_STATUSES.includes(committee.status)) {
+      throw new BadRequestException(
+        'This committee is not currently accepting new members',
+      );
+    }
+
     const existingMember = await this.prisma.committeeMember.findUnique({
       where: {
         userId_committeeId: { userId, committeeId: invitation.committeeId },
@@ -207,7 +250,7 @@ export class InvitationsService {
       );
     }
 
-    const [updatedInvitation] = await this.prisma.$transaction([
+    const [updatedInvitation, membership] = await this.prisma.$transaction([
       this.prisma.invitation.update({
         where: { id: invitation.id },
         data: { status: InvitationStatus.ACCEPTED, acceptedAt: new Date() },
@@ -238,25 +281,30 @@ export class InvitationsService {
     ]);
 
     // Notify the committee admin that the invitation was accepted
-    const committeeWithCreator = await this.prisma.committee.findUnique({
-      where: { id: invitation.committeeId },
-      select: { createdBy: true, name: true },
+    const accepter = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
     });
-    if (committeeWithCreator) {
-      const accepter = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { name: true },
-      });
-      await this.notificationsService.create({
-        userId: committeeWithCreator.createdBy,
-        type: NotificationType.COMMITTEE_INVITATION,
-        title: 'Invitation Accepted',
-        message: `${accepter?.name ?? 'A user'} has accepted the invitation to join "${committeeWithCreator.name}".`,
-        committeeId: invitation.committeeId,
-      });
-    }
 
-    return updatedInvitation as InvitationWithRelations;
+    await this.notificationsService.create({
+      userId: committee.createdBy,
+      type: NotificationType.COMMITTEE_INVITATION,
+      title: 'Invitation Accepted',
+      message: `${accepter?.name ?? 'A user'} has accepted the invitation to join "${committee.name}".`,
+      committeeId: invitation.committeeId,
+    });
+
+    return {
+      invitation: updatedInvitation as InvitationWithRelations,
+      membership: {
+        id: membership.id,
+        committeeId: membership.committeeId,
+        userId: membership.userId,
+        role: membership.role,
+        status: membership.status,
+        joinedAt: membership.joinedAt,
+      },
+    };
   }
 
   async cancel(

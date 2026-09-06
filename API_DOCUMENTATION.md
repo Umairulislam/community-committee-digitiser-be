@@ -682,8 +682,7 @@ Cookie: jwt=<admin-token>
 
 Invitations let a committee admin add members by email. Managing invitations requires
 the platform ADMIN role **and** committee ownership; accepting an invitation requires
-only an authenticated account plus the token (see
-[Notes and Known Ambiguities](#notes-and-known-ambiguities)).
+only an authenticated account whose email matches the invitation, plus the token.
 
 ### POST /committees/:committeeId/invitations
 
@@ -819,7 +818,8 @@ Cookie: jwt=<admin-token>
 Accept an invitation token and join the committee. In a single transaction the invitation
 is marked `ACCEPTED`, the membership is created (or a previously `REMOVED` membership is
 reactivated as `ACTIVE`), and a `MEMBER_JOINED` audit entry is recorded. The committee
-admin is notified. The invitation's email is **not** checked against the accepting account.
+admin is notified. The authenticated user's email **must** match the invitation's email,
+and the committee must be in `ACTIVE` status.
 
 **Auth:** User
 
@@ -829,9 +829,9 @@ admin is notified. The invitation's email is **not** checked against the accepti
 |---|---|---|---|
 | token | string | yes | non-empty |
 
-**Success response (`201`):** the accepted invitation with `committee` and `inviter`.
+**Success response (`201`):** object containing the accepted `invitation` (with nested `committee` and `inviter`) and the created/updated `membership`.
 
-**Key errors:** `400` invitation already accepted/cancelled, or expired (lazily flipped to `EXPIRED`) · `404` invalid token · `409` accepting user is already a member
+**Key errors:** `400` invitation already accepted/cancelled, or expired (lazily flipped to `EXPIRED`), or committee not currently accepting members · `403` email does not match invitation · `404` invalid token or committee not found · `409` accepting user is already a member
 
 **Example:**
 
@@ -848,17 +848,27 @@ Response (`201`):
 
 ```json
 {
-  "id": "e1f2a3b4-5c6d-4e7f-8a9b-0c1d2e3f4a5b",
-  "committeeId": "c9a1b2d3-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
-  "invitedBy": "a0b1c2d3-e4f5-4a6b-8c7d-9e0f1a2b3c4e",
-  "email": "sana@example.com",
-  "token": "9f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c5b4a39281706f5e4d3c2b1a0",
-  "status": "ACCEPTED",
-  "expiresAt": "2026-09-11T09:30:00.000Z",
-  "acceptedAt": "2026-09-04T10:15:00.000Z",
-  "createdAt": "2026-09-04T09:30:00.000Z",
-  "committee": { "id": "c9a1b2d3-4e5f-4a6b-8c7d-9e0f1a2b3c4d", "name": "Friday Kameti" },
-  "inviter": { "id": "a0b1c2d3-e4f5-4a6b-8c7d-9e0f1a2b3c4e", "name": "Bilal Ahmed", "email": "bilal@example.com" }
+  "invitation": {
+    "id": "e1f2a3b4-5c6d-4e7f-8a9b-0c1d2e3f4a5b",
+    "committeeId": "c9a1b2d3-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "invitedBy": "a0b1c2d3-e4f5-4a6b-8c7d-9e0f1a2b3c4e",
+    "email": "sana@example.com",
+    "token": "9f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c5b4a39281706f5e4d3c2b1a0",
+    "status": "ACCEPTED",
+    "expiresAt": "2026-09-11T09:30:00.000Z",
+    "acceptedAt": "2026-09-04T10:15:00.000Z",
+    "createdAt": "2026-09-04T09:30:00.000Z",
+    "committee": { "id": "c9a1b2d3-4e5f-4a6b-8c7d-9e0f1a2b3c4d", "name": "Friday Kameti" },
+    "inviter": { "id": "a0b1c2d3-e4f5-4a6b-8c7d-9e0f1a2b3c4e", "name": "Bilal Ahmed", "email": "bilal@example.com" }
+  },
+  "membership": {
+    "id": "f2a3b4c5-6d7e-8f9a-0b1c-2d3e4f5a6b7c",
+    "committeeId": "c9a1b2d3-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "userId": "d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a",
+    "role": "MEMBER",
+    "status": "ACTIVE",
+    "joinedAt": "2026-09-04T10:15:00.000Z"
+  }
 }
 ```
 
@@ -2263,11 +2273,12 @@ Cookie: jwt=<token>
     {
       "id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
       "userId": "b1f3c2a4-5d6e-4f7a-8b9c-0d1e2f3a4b5c",
-      "type": "PAYMENT_VERIFIED",
-      "title": "Payment Verified",
-      "message": "Your payment of 5000 has been verified.",
+      "type": "COMMITTEE_INVITATION",
+      "title": "Committee Invitation",
+      "message": "You have been invited to join \"Savings Committee\". Click to accept.",
       "read": false,
       "committeeId": "c9a1b2d3-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+      "token": "9f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c5b4a39281706f5e4d3c2b1a0",
       "createdAt": "2026-10-03T11:00:00.000Z"
     }
   ],
@@ -2277,6 +2288,9 @@ Cookie: jwt=<token>
   "limit": 20
 }
 ```
+
+**Notes:**
+- The `token` field is only populated for `COMMITTEE_INVITATION` notifications. It contains the invitation acceptance token, allowing the frontend to deep-link to `/invitations/accept?token=<value>`. For all other notification types, `token` is `null`.
 
 ### GET /notifications/unread-count
 
@@ -2323,6 +2337,7 @@ Cookie: jwt=<token>
   "message": "Your payment of 5000 has been verified.",
   "read": true,
   "committeeId": "c9a1b2d3-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+  "token": null,
   "createdAt": "2026-10-03T11:00:00.000Z"
 }
 ```
@@ -2865,9 +2880,9 @@ documentation mandate:
 5. **`src/lotteries/dto/` is an empty folder.** No DTOs exist for lottery endpoints.
 6. **`PORT` and `CORS_ORIGIN` are not in `.env.example`.** `main.ts` reads them with
    defaults (`3000`, `http://localhost:3000`), but the sample env file omits them.
-7. **Invitation acceptance has no email-match check.** Any authenticated user holding
-   the token can accept an invitation, even if their account email differs from the
-   invited email.
+7. **Invitation acceptance requires email match and ACTIVE committee.** The accepting
+   user's email must match the invitation's email, and the committee must be `ACTIVE`.
+   Invitations to `DRAFT`, `PAUSED`, `COMPLETED`, or `CANCELLED` committees are rejected.
 8. **Admin notification broadcast uses an internal creator check, not `AdminGuard`.**
    A platform admin who did not create the committee gets `403` from
    `POST /committees/:committeeId/notifications`.

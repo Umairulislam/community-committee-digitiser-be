@@ -20,6 +20,7 @@ export class NotificationsService {
     title: string;
     message: string;
     committeeId?: string;
+    token?: string;
   }) {
     return this.prisma.notification.create({
       data: {
@@ -28,6 +29,7 @@ export class NotificationsService {
         title: params.title,
         message: params.message,
         committeeId: params.committeeId ?? null,
+        token: params.token ?? null,
       },
     });
   }

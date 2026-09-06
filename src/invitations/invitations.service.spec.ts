@@ -21,6 +21,7 @@ describe('InvitationsService', () => {
     name: 'Test Committee',
     createdBy: adminId,
     memberLimit: 10,
+    status: 'ACTIVE',
   };
 
   const mockInvitation = {
@@ -169,6 +170,66 @@ describe('InvitationsService', () => {
 
       expect(result.email).toBe('invitee@test.com');
     });
+
+    it('should include token in the COMMITTEE_INVITATION notification', async () => {
+      mockPrisma.committee.findUnique
+        .mockResolvedValueOnce(mockCommittee)
+        .mockResolvedValueOnce(mockCommittee);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email: 'invitee@test.com',
+      });
+      mockPrisma.committeeMember.findUnique.mockResolvedValue(null);
+      mockPrisma.invitation.findFirst.mockResolvedValue(null);
+      mockPrisma.committeeMember.count.mockResolvedValue(0);
+      mockPrisma.invitation.create.mockResolvedValue(mockInvitation);
+
+      await service.create(
+        committeeId,
+        { email: 'invitee@test.com' },
+        adminId,
+      );
+
+      expect(mockNotificationsService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-1',
+          type: 'COMMITTEE_INVITATION',
+          token: expect.any(String),
+          committeeId,
+        }),
+      );
+    });
+
+    it('should use updated message text without email reference', async () => {
+      mockPrisma.committee.findUnique
+        .mockResolvedValueOnce(mockCommittee)
+        .mockResolvedValueOnce(mockCommittee);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email: 'invitee@test.com',
+      });
+      mockPrisma.committeeMember.findUnique.mockResolvedValue(null);
+      mockPrisma.invitation.findFirst.mockResolvedValue(null);
+      mockPrisma.committeeMember.count.mockResolvedValue(0);
+      mockPrisma.invitation.create.mockResolvedValue(mockInvitation);
+
+      await service.create(
+        committeeId,
+        { email: 'invitee@test.com' },
+        adminId,
+      );
+
+      expect(mockNotificationsService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('Click to accept'),
+        }),
+      );
+      expect(mockNotificationsService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.not.stringContaining('email'),
+        }),
+      );
+    });
   });
 
   describe('findAll', () => {
@@ -203,8 +264,17 @@ describe('InvitationsService', () => {
   });
 
   describe('accept', () => {
+    const acceptingUserId = 'user-2';
+    const acceptingEmail = 'invitee@test.com';
+
+    const activeCommittee = {
+      ...mockCommittee,
+      status: 'ACTIVE',
+    };
+
     it('should accept a valid invitation and create membership', async () => {
       mockPrisma.invitation.findUnique.mockResolvedValue(mockInvitation);
+      mockPrisma.committee.findUnique.mockResolvedValue(activeCommittee);
       mockPrisma.committeeMember.findUnique.mockResolvedValue(null);
 
       const acceptedInvitation = {
@@ -213,14 +283,33 @@ describe('InvitationsService', () => {
         acceptedAt: new Date(),
       };
 
+      const createdMembership = {
+        id: 'mem-new',
+        committeeId,
+        userId: acceptingUserId,
+        role: 'MEMBER',
+        status: 'ACTIVE',
+        joinedAt: new Date(),
+      };
+
       mockPrisma.$transaction.mockResolvedValue([
         acceptedInvitation,
-        { id: 'mem-new', status: 'ACTIVE' },
+        createdMembership,
+        { id: 'audit-1' },
       ]);
 
-      const result = await service.accept('abc123token', 'user-2');
+      mockPrisma.user.findUnique.mockResolvedValue({ name: 'Invitee' });
 
-      expect(result.status).toBe('ACCEPTED');
+      const result = await service.accept(
+        'abc123token',
+        acceptingUserId,
+        acceptingEmail,
+      );
+
+      expect(result.invitation.status).toBe('ACCEPTED');
+      expect(result.membership).toBeDefined();
+      expect(result.membership.id).toBe('mem-new');
+      expect(result.membership.status).toBe('ACTIVE');
       expect(mockPrisma.$transaction).toHaveBeenCalled();
     });
 
@@ -230,9 +319,9 @@ describe('InvitationsService', () => {
         status: 'ACCEPTED',
       });
 
-      await expect(service.accept('abc123token', 'user-2')).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.accept('abc123token', acceptingUserId, acceptingEmail),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should reject an expired invitation', async () => {
@@ -242,33 +331,79 @@ describe('InvitationsService', () => {
       });
       mockPrisma.invitation.update.mockResolvedValue({});
 
-      await expect(service.accept('abc123token', 'user-2')).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.accept('abc123token', acceptingUserId, acceptingEmail),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should reject if user is already a member', async () => {
       mockPrisma.invitation.findUnique.mockResolvedValue(mockInvitation);
+      mockPrisma.committee.findUnique.mockResolvedValue(activeCommittee);
       mockPrisma.committeeMember.findUnique.mockResolvedValue({
         id: 'mem-1',
         status: 'ACTIVE',
       });
 
-      await expect(service.accept('abc123token', 'user-2')).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.accept('abc123token', acceptingUserId, acceptingEmail),
+      ).rejects.toThrow(ConflictException);
     });
 
     it('should reject an invalid token', async () => {
       mockPrisma.invitation.findUnique.mockResolvedValue(null);
 
-      await expect(service.accept('bad-token', 'user-2')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.accept('bad-token', acceptingUserId, acceptingEmail),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should reject when accepting user email does not match invitation email', async () => {
+      mockPrisma.invitation.findUnique.mockResolvedValue(mockInvitation);
+
+      await expect(
+        service.accept('abc123token', acceptingUserId, 'wrong@email.com'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should reject when committee is not ACTIVE', async () => {
+      mockPrisma.invitation.findUnique.mockResolvedValue(mockInvitation);
+      mockPrisma.committee.findUnique.mockResolvedValue({
+        ...activeCommittee,
+        status: 'DRAFT',
+      });
+
+      await expect(
+        service.accept('abc123token', acceptingUserId, acceptingEmail),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject when committee is PAUSED', async () => {
+      mockPrisma.invitation.findUnique.mockResolvedValue(mockInvitation);
+      mockPrisma.committee.findUnique.mockResolvedValue({
+        ...activeCommittee,
+        status: 'PAUSED',
+      });
+
+      await expect(
+        service.accept('abc123token', acceptingUserId, acceptingEmail),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject when committee is CANCELLED', async () => {
+      mockPrisma.invitation.findUnique.mockResolvedValue(mockInvitation);
+      mockPrisma.committee.findUnique.mockResolvedValue({
+        ...activeCommittee,
+        status: 'CANCELLED',
+      });
+
+      await expect(
+        service.accept('abc123token', acceptingUserId, acceptingEmail),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should reactivate a removed member', async () => {
       mockPrisma.invitation.findUnique.mockResolvedValue(mockInvitation);
+      mockPrisma.committee.findUnique.mockResolvedValue(activeCommittee);
       mockPrisma.committeeMember.findUnique.mockResolvedValue({
         id: 'mem-existing',
         status: 'REMOVED',
@@ -279,15 +414,86 @@ describe('InvitationsService', () => {
         status: 'ACCEPTED',
       };
 
+      const reactivatedMembership = {
+        id: 'mem-existing',
+        committeeId,
+        userId: acceptingUserId,
+        role: 'MEMBER',
+        status: 'ACTIVE',
+        joinedAt: new Date(),
+      };
+
       mockPrisma.$transaction.mockResolvedValue([
         acceptedInvitation,
-        { id: 'mem-existing', status: 'ACTIVE' },
+        reactivatedMembership,
+        { id: 'audit-2' },
       ]);
 
-      const result = await service.accept('abc123token', 'user-2');
+      mockPrisma.user.findUnique.mockResolvedValue({ name: 'Invitee' });
 
-      expect(result.status).toBe('ACCEPTED');
+      const result = await service.accept(
+        'abc123token',
+        acceptingUserId,
+        acceptingEmail,
+      );
+
+      expect(result.invitation.status).toBe('ACCEPTED');
+      expect(result.membership.id).toBe('mem-existing');
+      expect(result.membership.status).toBe('ACTIVE');
       expect(mockPrisma.$transaction).toHaveBeenCalled();
+    });
+
+    it('should notify committee admin after acceptance', async () => {
+      mockPrisma.invitation.findUnique.mockResolvedValue(mockInvitation);
+      mockPrisma.committee.findUnique.mockResolvedValue(activeCommittee);
+      mockPrisma.committeeMember.findUnique.mockResolvedValue(null);
+
+      mockPrisma.$transaction.mockResolvedValue([
+        { ...mockInvitation, status: 'ACCEPTED' },
+        { id: 'mem-new', committeeId, userId: acceptingUserId, role: 'MEMBER', status: 'ACTIVE', joinedAt: new Date() },
+        { id: 'audit-3' },
+      ]);
+
+      mockPrisma.user.findUnique.mockResolvedValue({ name: 'Invitee' });
+
+      await service.accept('abc123token', acceptingUserId, acceptingEmail);
+
+      expect(mockNotificationsService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: adminId,
+          type: 'COMMITTEE_INVITATION',
+        }),
+      );
+    });
+
+    it('should return membership details in the response', async () => {
+      mockPrisma.invitation.findUnique.mockResolvedValue(mockInvitation);
+      mockPrisma.committee.findUnique.mockResolvedValue(activeCommittee);
+      mockPrisma.committeeMember.findUnique.mockResolvedValue(null);
+
+      const joinedAt = new Date();
+      mockPrisma.$transaction.mockResolvedValue([
+        { ...mockInvitation, status: 'ACCEPTED' },
+        { id: 'mem-new', committeeId, userId: acceptingUserId, role: 'MEMBER', status: 'ACTIVE', joinedAt },
+        { id: 'audit-4' },
+      ]);
+
+      mockPrisma.user.findUnique.mockResolvedValue({ name: 'Invitee' });
+
+      const result = await service.accept(
+        'abc123token',
+        acceptingUserId,
+        acceptingEmail,
+      );
+
+      expect(result.membership).toEqual({
+        id: 'mem-new',
+        committeeId,
+        userId: acceptingUserId,
+        role: 'MEMBER',
+        status: 'ACTIVE',
+        joinedAt,
+      });
     });
   });
 

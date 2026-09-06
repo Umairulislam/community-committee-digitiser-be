@@ -54,8 +54,8 @@ export class InvitationsController {
 
   @Post('invitations/accept')
   accept(@Body() dto: AcceptInvitationDto, @Req() req: Request) {
-    const user = req.user as { id: string };
-    return this.invitationsService.accept(dto.token, user.id);
+    const user = req.user as { id: string; email: string };
+    return this.invitationsService.accept(dto.token, user.id, user.email);
   }
 
   @Post('committees/:committeeId/invitations/:id/cancel')

@@ -18,6 +18,7 @@ describe('NotificationsService', () => {
     message: 'Test message',
     read: false,
     committeeId: null,
+    token: null,
     createdAt: new Date(),
   };
 
@@ -64,6 +65,7 @@ describe('NotificationsService', () => {
           title: 'Test Notification',
           message: 'Test message',
           committeeId: null,
+          token: null,
         },
       });
     });
@@ -84,7 +86,46 @@ describe('NotificationsService', () => {
 
       expect(result.committeeId).toBe(committeeId);
       expect(mockPrisma.notification.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ committeeId }),
+        data: expect.objectContaining({ committeeId, token: null }),
+      });
+    });
+
+    it('should create a notification with a token for invitation types', async () => {
+      const invitationToken = 'abc123token';
+      mockPrisma.notification.create.mockResolvedValue({
+        ...mockNotification,
+        type: 'COMMITTEE_INVITATION',
+        committeeId,
+        token: invitationToken,
+      });
+
+      const result = await service.create({
+        userId,
+        type: 'COMMITTEE_INVITATION' as any,
+        title: 'Committee Invitation',
+        message: 'You have been invited',
+        committeeId,
+        token: invitationToken,
+      });
+
+      expect(result.token).toBe(invitationToken);
+      expect(mockPrisma.notification.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ token: invitationToken }),
+      });
+    });
+
+    it('should default token to null when not provided', async () => {
+      mockPrisma.notification.create.mockResolvedValue(mockNotification);
+
+      await service.create({
+        userId,
+        type: 'GENERAL' as any,
+        title: 'Test',
+        message: 'Test',
+      });
+
+      expect(mockPrisma.notification.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ token: null }),
       });
     });
   });
