@@ -1,8 +1,8 @@
-# Community Committee Digitiser — Project Overview
+# Trust Kameti — Project Overview
 
 ## Purpose
 
-Community Committee Digitiser is a digital platform for managing informal rotating savings groups (kametis).
+Trust Kameti is a digital platform for managing informal rotating savings groups (kametis).
 
 It replaces trust-based, paper/WhatsApp processes with a transparent and auditable system for managing members, contributions, cycles, lottery-based payouts, payments, notifications, and records.
 

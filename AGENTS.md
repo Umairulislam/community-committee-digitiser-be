@@ -1,4 +1,4 @@
-# Community Committee Digitiser — Backend
+# Trust Kameti — Backend
 
 ## Project
 

@@ -1,6 +1,6 @@
-# API Documentation — Community Committee Digitiser Backend
+# API Documentation — Trust Kameti Backend
 
-REST API reference for the backend of the Community Committee Digitiser (digital kameti) platform.
+REST API reference for the backend of the Trust Kameti (digital kameti) platform.
 All endpoints, schemas, and examples below are derived directly from the source code.
 
 ## Table of Contents

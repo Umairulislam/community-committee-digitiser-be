@@ -1,4 +1,4 @@
-# Community Committee Digitiser — Backend
+# Trust Kameti — Backend
 
 Backend API for a transparent and auditable digital committee (kameti) platform.
 It digitises every stage of a rotating savings group — members, cycles, contributions, payments, lotteries, and payouts — with the backend as the single source of truth for financial data, lottery fairness, and audit history.
