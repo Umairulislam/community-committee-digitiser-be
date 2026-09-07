@@ -365,16 +365,46 @@ describe('InvitationsService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('should reject when committee is not ACTIVE', async () => {
+    it('should accept when committee is DRAFT (recruitment phase)', async () => {
       mockPrisma.invitation.findUnique.mockResolvedValue(mockInvitation);
       mockPrisma.committee.findUnique.mockResolvedValue({
         ...activeCommittee,
         status: 'DRAFT',
       });
+      mockPrisma.committeeMember.findUnique.mockResolvedValue(null);
 
-      await expect(
-        service.accept('abc123token', acceptingUserId, acceptingEmail),
-      ).rejects.toThrow(BadRequestException);
+      const acceptedInvitation = {
+        ...mockInvitation,
+        status: 'ACCEPTED',
+        acceptedAt: new Date(),
+      };
+
+      const createdMembership = {
+        id: 'mem-new',
+        committeeId,
+        userId: acceptingUserId,
+        role: 'MEMBER',
+        status: 'ACTIVE',
+        joinedAt: new Date(),
+      };
+
+      mockPrisma.$transaction.mockResolvedValue([
+        acceptedInvitation,
+        createdMembership,
+        { id: 'audit-1' },
+      ]);
+
+      mockPrisma.user.findUnique.mockResolvedValue({ name: 'Invitee' });
+
+      const result = await service.accept(
+        'abc123token',
+        acceptingUserId,
+        acceptingEmail,
+      );
+
+      expect(result.invitation.status).toBe('ACCEPTED');
+      expect(result.membership.status).toBe('ACTIVE');
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
     });
 
     it('should reject when committee is PAUSED', async () => {

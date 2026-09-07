@@ -37,7 +37,10 @@ export type AcceptanceResult = {
   membership: MembershipSummary;
 };
 
+// Committees accept new members while being assembled (DRAFT) and while
+// operating (ACTIVE); PAUSED/COMPLETED/CANCELLED committees are closed.
 const ACCEPTABLE_COMMITTEE_STATUSES: CommitteeStatus[] = [
+  CommitteeStatus.DRAFT,
   CommitteeStatus.ACTIVE,
 ];
 
