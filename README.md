@@ -1,122 +1,159 @@
-# Trust Kameti — Backend
+# 🔐 Trust Kameti — Backend
 
-Backend API for a transparent and auditable digital committee (kameti) platform.
-It digitises every stage of a rotating savings group — members, cycles, contributions, payments, lotteries, and payouts — with the backend as the single source of truth for financial data, lottery fairness, and audit history.
+Backend API for **Trust Kameti**, a transparent and auditable digital kameti management platform.
 
-## Tech Stack
+The backend acts as the **single source of truth** for committee data, financial records, lottery fairness, payouts, notifications, and audit history. It powers the Trust Kameti frontend through a modular REST API built with NestJS.
 
-- **NestJS 10** (TypeScript 5) — modular REST API framework
-- **PostgreSQL** with **Prisma ORM 6** — persistence and migrations
-- **Redis** + **BullMQ 6** (via `@nestjs/bullmq`) — background notification queue
-- **@nestjs/schedule** — daily cron jobs (contribution reminders, overdue sweep)
-- **JWT authentication** (`@nestjs/jwt` + Passport `passport-jwt`), stored in an HTTP-only `jwt` cookie (`cookie-parser`); passwords hashed with **bcrypt**
-- **class-validator / class-transformer** — DTO validation (whitelist + transform)
-- **OpenAI Chat Completions API** (plain REST) — AI Committee Assistant
-- **Jest** + ts-jest + Supertest — unit and e2e tests; **ESLint** + **Prettier** for linting/formatting
+## 🛠️ Tech Stack
 
-## Prerequisites
+- **NestJS 10** + **TypeScript 5** — modular REST API
+- **PostgreSQL** + **Prisma ORM 6** — database, schema and migrations
+- **Redis** + **BullMQ 6** — background jobs and notification queues
+- **@nestjs/schedule** — scheduled reminders and overdue contribution checks
+- **JWT + Passport** — authentication with HTTP-only cookies
+- **bcrypt** — password hashing
+- **class-validator / class-transformer** — request validation and transformation
+- **OpenAI API** — AI Committee Assistant
+- **Jest + Supertest** — unit and end-to-end testing
+- **ESLint + Prettier** — code quality and formatting
 
-- **Node.js 20+** (project uses `@types/node` ^20)
-- **PostgreSQL** (any recent version supported by Prisma 6)
-- **Redis** (required at startup — the notification queue and cron jobs connect to it)
+## 💡 Core Features
 
-## Environment Variables
+- User registration and authentication
+- Committee and member management
+- Invitation flow with secure single-use tokens
+- Contribution and payment tracking
+- Admin payment verification and rejection
+- Committee cycle management
+- Backend-controlled lottery execution
+- Payout tracking and status management
+- In-app notifications and automated reminders
+- Audit logs and chronological activity timeline
+- Committee reports in JSON and CSV
+- AI Committee Assistant for authorised committee queries
 
-Copy `.env.example` to `.env` and fill in the values. Keys expected by the application:
+## ⚙️ Prerequisites
 
-| Variable | Required | Notes |
-|---|---|---|
-| `DATABASE_URL` | yes | PostgreSQL connection string used by Prisma |
-| `JWT_SECRET` | yes | secret used to sign JWTs |
-| `JWT_EXPIRES_IN` | yes | JWT lifetime (e.g. `7d`; code default `7d`) |
-| `COOKIE_SECURE` | yes | set `true` to issue the auth cookie only over HTTPS |
-| `REDIS_HOST` | yes | Redis host for BullMQ (code default `localhost`) |
-| `REDIS_PORT` | yes | Redis port for BullMQ (code default `6379`) |
-| `OPENAI_API_KEY` | no | enables the AI Committee Assistant; requests return `503` when unset |
-| `OPENAI_MODEL` | no | model name (code default `gpt-4o-mini`) |
-| `OPENAI_BASE_URL` | no | OpenAI-compatible API base URL (code default `https://api.openai.com/v1`) |
-| `OPENAI_TIMEOUT_MS` | no | request timeout in milliseconds (code default `30000`) |
+- **Node.js 20+**
+- **PostgreSQL**
+- **Redis**
 
-> Note: `main.ts` also reads `PORT` (default `3000`) and `CORS_ORIGIN` (default `http://localhost:3000`), but these keys are **not** listed in `.env.example`.
+## 🔐 Environment Variables
 
-## Setup
+Copy `.env.example` to `.env` and configure the required values.
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `JWT_SECRET` | Yes | Secret used to sign JWTs |
+| `JWT_EXPIRES_IN` | Yes | JWT lifetime, e.g. `7d` |
+| `COOKIE_SECURE` | Yes | Enables secure cookies over HTTPS |
+| `REDIS_HOST` | Yes | Redis host |
+| `REDIS_PORT` | Yes | Redis port |
+| `OPENAI_API_KEY` | No | Enables the AI Committee Assistant |
+| `OPENAI_MODEL` | No | OpenAI model name |
+| `OPENAI_BASE_URL` | No | OpenAI-compatible API base URL |
+| `OPENAI_TIMEOUT_MS` | No | AI request timeout |
+
+The application also supports:
+
+```env
+PORT=3000
+CORS_ORIGIN=http://localhost:3000
+```
+
+## 🚀 Getting Started
+
+Install dependencies:
 
 ```bash
-# 1. Install dependencies
 npm install
+```
 
-# 2. Configure the environment
+Create the environment file:
+
+```bash
 cp .env.example .env
-# ... then edit .env with your database, Redis, and JWT values
+```
 
-# 3. Apply database migrations (also generates the Prisma client)
-npm run prisma:migrate          # prisma migrate dev
+Apply database migrations:
 
-# (optional) Regenerate the Prisma client without migrating
-npm run prisma:generate
+```bash
+npm run prisma:migrate
+```
 
-# 4. Start Redis (required before starting the app)
-#    e.g. on Windows/WSL:
+Start Redis:
+
+```bash
 redis-server
-#    or on Docker:
-docker run -d -p 6379:6379 redis
+```
 
-# 5. Start the dev server
+Or with Docker:
+
+```bash
+docker run -d -p 6379:6379 redis
+```
+
+Start the development server:
+
+```bash
 npm run start:dev
 ```
 
-The API listens on `http://localhost:3000` by default.
+By default, the API runs at:
 
-> **Note:** there is no seed script in this repository — the database starts empty after migrations. Create the first users via `POST /auth/register` (see the API documentation).
-
-Useful extras: `npm run prisma:studio` (database GUI), `npm run prisma:migrate:deploy` (production migrations), `npm run start:prod` (run the compiled build from `dist/`).
-
-## Project Structure
-
+```text
+http://localhost:3000
 ```
+
+> The repository does not include a seed script. Create the first user through `POST /auth/register`.
+
+## 📁 Project Structure
+
+```text
 src/
-├── auth/           # Registration/login, JWT cookie handling, guards, passport strategy
-├── users/          # User persistence service
-├── committees/     # Committee CRUD and lifecycle (DRAFT → ACTIVE → ... )
-├── members/        # Committee membership listing/removal, "my committees"
-├── invitations/    # Email invitations with single-use tokens
-├── cycles/         # Cycle generation, status transitions, start-next flow
-├── contributions/  # Per-cycle contribution records, summaries, overdue marking
-├── payments/       # Payment claims, admin verification/rejection
-├── lotteries/      # Eligibility rules, draw execution, results and history
-├── payouts/        # Winner payouts and payout status machine
-├── audit/          # Audit trail queries (list + chronological timeline)
-├── notifications/  # In-app notifications, BullMQ queue/processor, daily cron jobs
-├── reports/        # JSON and CSV analytical reports per committee
-├── ai/             # AI Committee Assistant (context builder + OpenAI client)
-├── prisma/         # PrismaService and module
-├── app.module.ts   # Root module wiring all feature modules
-└── main.ts         # Bootstrap (validation pipe, CORS, cookie parser, port)
+├── auth/           # Authentication, JWT cookies, guards and strategy
+├── users/          # User persistence
+├── committees/     # Committee CRUD and lifecycle
+├── members/        # Membership management
+├── invitations/    # Invitation flow and tokens
+├── cycles/         # Committee cycle management
+├── contributions/  # Contribution records and summaries
+├── payments/       # Payment claims and verification
+├── lotteries/      # Eligibility, draws and lottery history
+├── payouts/        # Winner payouts and statuses
+├── audit/          # Audit logs and activity timeline
+├── notifications/  # Notifications, BullMQ jobs and cron tasks
+├── reports/        # Committee reports
+├── ai/             # AI Committee Assistant
+├── prisma/         # Prisma service and module
+├── app.module.ts
+└── main.ts
 
-prisma/             # schema.prisma + SQL migrations
-test/               # e2e test setup (Jest)
-docs/               # Design/behaviour documents (workflows, data model, overview)
+prisma/             # Prisma schema and migrations
+test/               # End-to-end test setup
+docs/               # Project and workflow documentation
 ```
 
-## Running Tests
+## 🧪 Testing
 
 ```bash
-# Unit tests (all *.spec.ts files under src/)
 npm run test
-
-# Watch mode
 npm run test:watch
-
-# Coverage report
 npm run test:cov
-
-# e2e tests
 npm run test:e2e
-
-# Lint
 npm run lint
 ```
 
-## API Documentation
+## 📖 API Documentation
 
-Full endpoint reference — every route, DTO, response shape, and error code, with examples — lives in [API_DOCUMENTATION.md](./API_DOCUMENTATION.md).
+Full API documentation, including endpoints, DTOs, response formats, validation rules, and error codes:
+
+[API_DOCUMENTATION.md](./API_DOCUMENTATION.md)
+
+## 🔗 Frontend
+
+The frontend application is built with **Next.js, TypeScript, Material UI, Redux Toolkit and RTK Query**.
+
+**Frontend repository:**  
+https://github.com/Umairulislam/trust-kameti-frontend
