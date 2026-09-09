@@ -3,6 +3,7 @@ import {
   Post,
   Body,
   Get,
+  Patch,
   UseGuards,
   Req,
   Res,
@@ -14,6 +15,7 @@ import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { ConfigService } from '@nestjs/config';
+import { UpdateProfileDto } from '../users/dto/update-profile.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -66,6 +68,13 @@ export class AuthController {
   async me(@Req() req: Request) {
     const user = req.user as { id: string };
     return this.authService.getCurrentUser(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('me')
+  async updateMe(@Req() req: Request, @Body() dto: UpdateProfileDto) {
+    const user = req.user as { id: string };
+    return this.authService.updateCurrentUser(user.id, dto);
   }
 
   private setAuthCookie(res: Response, token: string): void {

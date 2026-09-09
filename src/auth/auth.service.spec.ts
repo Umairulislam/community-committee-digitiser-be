@@ -33,10 +33,8 @@ describe('AuthService', () => {
       findByEmail: jest.fn(),
       findById: jest.fn(),
       create: jest.fn(),
-      toSafeUser: jest.fn((user) => {
-        const { passwordHash: _, ...safe } = user;
-        return safe;
-      }),
+      updateProfile: jest.fn(),
+      toSafeUser: jest.fn(UsersService.prototype.toSafeUser),
     };
 
     const mockJwtService = {
@@ -166,6 +164,23 @@ describe('AuthService', () => {
         sub: 'user-1',
         email: 'test@example.com',
       });
+    });
+  });
+
+  describe('updateCurrentUser', () => {
+    it('returns the updated profile without the password hash', async () => {
+      const updated = { ...mockUser, name: 'Updated Name' };
+      jest.spyOn(usersService, 'updateProfile').mockResolvedValue(updated);
+
+      const result = await authService.updateCurrentUser(mockUser.id, {
+        name: updated.name,
+      });
+
+      expect(usersService.updateProfile).toHaveBeenCalledWith(mockUser.id, {
+        name: updated.name,
+      });
+      expect(result.name).toBe(updated.name);
+      expect(result).not.toHaveProperty('passwordHash');
     });
   });
 

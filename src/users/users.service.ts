@@ -1,9 +1,11 @@
 import {
   Injectable,
   ConflictException,
+  BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { User } from '@prisma/client';
+import { Prisma, User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -41,8 +43,40 @@ export class UsersService {
     });
   }
 
+  async updateProfile(
+    userId: string,
+    data: { name?: string; phone?: string | null },
+  ): Promise<User> {
+    if (data.name === undefined && data.phone === undefined) {
+      throw new BadRequestException('Provide at least one profile field');
+    }
+
+    try {
+      return await this.prisma.user.update({
+        where: { id: userId, status: 'ACTIVE' },
+        data: { name: data.name, phone: data.phone },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new UnauthorizedException('Account is not active');
+      }
+      throw error;
+    }
+  }
+
   toSafeUser(user: User): Omit<User, 'passwordHash'> {
-    const { passwordHash: _, ...safeUser } = user;
-    return safeUser;
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      status: user.status,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
   }
 }

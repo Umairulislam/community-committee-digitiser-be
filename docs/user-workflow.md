@@ -227,8 +227,13 @@ The AI can explain available data but cannot:
 Users can manage:
 
 * Name
-* Email/phone
-* Notification preferences
+* Phone (including clearing it)
+
+Both users and admins read their own profile with `GET /auth/me` and update it
+with `PATCH /auth/me`. Email remains read-only. Notification preferences are not
+currently supported by the database schema.
+
+See [Profile Management API](../API_DOCUMENTATION.md#patch-authme) for validation and examples.
 
 ## Overall User Flow
 

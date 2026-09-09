@@ -5,6 +5,7 @@ import { User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { UpdateProfileDto } from '../users/dto/update-profile.dto';
 
 interface AuthResponse {
   user: Omit<User, 'passwordHash'>;
@@ -34,7 +35,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
+    const isPasswordValid = await bcrypt.compare(
+      dto.password,
+      user.passwordHash,
+    );
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -55,6 +59,14 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException();
     }
+    return this.usersService.toSafeUser(user);
+  }
+
+  async updateCurrentUser(
+    userId: string,
+    dto: UpdateProfileDto,
+  ): Promise<Omit<User, 'passwordHash'>> {
+    const user = await this.usersService.updateProfile(userId, dto);
     return this.usersService.toSafeUser(user);
   }
 }

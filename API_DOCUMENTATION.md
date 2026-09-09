@@ -218,7 +218,8 @@ POST /auth/logout
 
 Return the authenticated user's profile.
 
-**Auth:** User
+**Auth:** Active `USER` or `ADMIN`, using the `jwt` cookie. Returns only the caller's
+profile; no user ID is accepted to select another account.
 
 **Success response (`200`):** safe user object.
 
@@ -243,6 +244,84 @@ Cookie: jwt=<token>
   "updatedAt": "2026-09-04T09:00:00.000Z"
 }
 ```
+
+---
+
+### PATCH /auth/me
+
+Update the current authenticated profile. Available to both `USER` and `ADMIN`
+accounts with `ACTIVE` status. The backend takes the user ID from the JWT session.
+
+**Request body:** `UpdateProfileDto`. Provide at least one supported field.
+
+| Field | Type | Required | Constraints |
+|---|---|---|---|
+| name | string | no | trimmed, non-empty, maximum 100 characters; cannot be null |
+| phone | string or null | no | strings are trimmed, non-empty, maximum 32 characters; null clears the phone |
+
+Omitted fields retain their current values. Phone numbers remain free-form strings,
+consistent with registration; this endpoint does not verify phone ownership.
+
+Unknown fields are rejected with `400`, including `email`, `role`, `status`,
+`password`, `passwordHash`, IDs, ownership fields, timestamps and relation objects.
+Notification preferences are not supported by the current Prisma schema and cannot
+be updated. No schema migration is required.
+
+**Success response (`200`):** updated safe user object, with the same shape as
+`GET /auth/me`; never includes `passwordHash`.
+
+**Key errors:** `400` invalid fields or empty update; `401` missing, invalid or
+expired cookie, deleted account, or inactive/suspended account.
+
+```http
+PATCH /auth/me
+Cookie: jwt=<token>
+Content-Type: application/json
+
+{
+  "name": "Ayesha Ahmed",
+  "phone": "+92 300 7654321"
+}
+```
+
+```json
+{
+  "id": "b1f3c2a4-5d6e-4f7a-8b9c-0d1e2f3a4b5c",
+  "name": "Ayesha Ahmed",
+  "email": "ayesha@example.com",
+  "phone": "+92 300 7654321",
+  "role": "USER",
+  "status": "ACTIVE",
+  "createdAt": "2026-09-04T09:00:00.000Z",
+  "updatedAt": "2026-09-09T09:00:00.000Z"
+}
+```
+
+#### Testing profile endpoints
+
+1. Log in through `POST /auth/login` with an existing active USER account and
+   retain the `jwt` cookie in your API client.
+2. Call `GET /auth/me`, then `PATCH /auth/me` with the example above. Confirm
+   `200`, the updated safe profile and no `passwordHash`. Read the profile again
+   to confirm persistence.
+3. Test partial updates with only `name` and with `{ "phone": null }`.
+4. Submit `{ "name": "Valid Name", "role": "ADMIN" }`, `{ "name": null }`,
+   `{ "name": "   " }` and `{}`. Each must return `400` without changing the profile.
+5. Remove the cookie and confirm both endpoints return `401`.
+6. Repeat with an existing active ADMIN account. Only that admin's profile changes.
+
+Browser requests must use `credentials: 'include'`, as for the existing auth API.
+
+```bash
+npm test -- --runInBand
+npm run test:e2e -- --runInBand --testPathPattern=profile.e2e-spec.ts
+npx --no-install tsc --noEmit --incremental false
+```
+
+The profile HTTP integration tests use real Nest routing, DTO validation, cookie
+parsing, JWT verification and auth/users services, with an in-memory Prisma mock.
+They do not connect to PostgreSQL, Redis or the AI provider. They cover both roles,
+partial updates, protected fields, invalid input and authentication failures.
 
 ---
 
